@@ -1,0 +1,32 @@
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Google Sheets service account credentials
+.gsheets/
+*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local data
+*.xlsx
+!assets/*.xlsx
+data_local/
