@@ -104,7 +104,16 @@ def _build_diff(
                 "nota": r["nota"],
             }
         )
-    return pd.DataFrame(rows)
+    cols = [
+        "sku", "nombre", "en_catalogo",
+        "costo_anterior", "costo_nuevo", "delta_pct", "nota",
+    ]
+    df = pd.DataFrame(rows, columns=cols)
+    # `delta_pct` puede tener None (SKU nuevo o sin costo): forzar a
+    # columna numérica float para que None → NaN y operaciones como
+    # .abs() o el render numérico no rompan.
+    df["delta_pct"] = pd.to_numeric(df["delta_pct"], errors="coerce")
+    return df
 
 
 def render() -> None:
@@ -200,7 +209,6 @@ def render() -> None:
 
     n_fuera_catalogo = (~df_diff["en_catalogo"]).sum()
     n_nuevos = df_diff["costo_anterior"].isna().sum()
-    n_cambiados = df_diff[df_diff["costo_anterior"].notna() & (df_diff["delta_pct"].abs() > 0.01)].shape[0] if "delta_pct" in df_diff else 0
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total a cargar", f"{len(df_diff):,}")
