@@ -109,9 +109,15 @@ def render() -> None:
         st.warning("La API no devolvió comprobantes para ese período.")
         return
 
-    # Filtrar a UYU y a filas con SKU (descarta NCF de descuento sin items)
-    df_fc = df_fc[df_fc["moneda"] == "UYU"].copy()
-    df_fc = df_fc[df_fc["sku"].astype(str).str.len() > 0].reset_index(drop=True)
+    # df_uyu = TODA la facturación UYU del mes. Es la base de la VENTA
+    # NETA: incluye las NCF de descuento comercial sin SKU, que son
+    # negativas y deben restar (es como lo computa Contabilium).
+    df_uyu = df_fc[df_fc["moneda"] == "UYU"].copy()
+    # df_fc = solo las líneas con SKU. Es la base del cruce de COGS:
+    # a una línea sin SKU no se le puede buscar un costo.
+    df_fc = df_uyu[df_uyu["sku"].astype(str).str.len() > 0].reset_index(
+        drop=True
+    )
 
     with st.spinner("Leyendo costos del Google Sheet…"):
         try:
@@ -155,7 +161,10 @@ def render() -> None:
     )
 
     # ---- KPIs ----
-    venta_neta = df_fc["monto"].sum()
+    # Venta neta = TODA la facturación UYU del mes (con y sin SKU). Las
+    # NCF de descuento comercial sin SKU restan acá. El cruce de COGS de
+    # arriba SÍ usa solo las líneas con SKU (df_fc), que es correcto.
+    venta_neta = df_uyu["monto"].sum()
     cogs_total = df_con_costo["cogs_linea"].sum()
     margen_bruto = venta_neta - cogs_total
     margen_pct = (margen_bruto / venta_neta * 100) if venta_neta else 0.0
