@@ -160,11 +160,13 @@ def render() -> None:
     margen_bruto = venta_neta - cogs_total
     margen_pct = (margen_bruto / venta_neta * 100) if venta_neta else 0.0
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Venta neta (UYU)", f"$ {venta_neta:,.0f}")
-    c2.metric("COGS (UYU)", f"$ {cogs_total:,.0f}")
-    c3.metric("Margen bruto", f"$ {margen_bruto:,.0f}")
-    c4.metric("Margen %", f"{margen_pct:.1f}%")
+    # Métricas en 2x2: cuatro en una fila cortan los montos grandes.
+    fila1 = st.columns(2)
+    fila1[0].metric("Venta neta (UYU)", f"$ {venta_neta:,.0f}")
+    fila1[1].metric("COGS (UYU)", f"$ {cogs_total:,.0f}")
+    fila2 = st.columns(2)
+    fila2[0].metric("Margen bruto (UYU)", f"$ {margen_bruto:,.0f}")
+    fila2[1].metric("Margen %", f"{margen_pct:.1f}%")
 
     # ---- Panel de salud ----
     if not df_sin_costo.empty:

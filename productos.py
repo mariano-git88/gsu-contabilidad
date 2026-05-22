@@ -112,15 +112,17 @@ def render() -> None:
                 df["nombre"].str.upper().str.contains(t, na=False, regex=False)
         df = df[mask].reset_index(drop=True)
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Productos", f"{len(df):,}")
-    c2.metric("Stock total (uds)", f"{df['stock'].sum():,.0f}")
-    c3.metric(
-        "Valor de stock (precio venta neto)",
+    # Métricas en 2x2: cuatro en una fila cortan los montos grandes.
+    fila1 = st.columns(2)
+    fila1[0].metric("Productos", f"{len(df):,}")
+    fila1[1].metric("Stock total (uds)", f"{df['stock'].sum():,.0f}")
+    fila2 = st.columns(2)
+    fila2[0].metric(
+        "Valor de stock a precio venta",
         f"$ {(df['stock'] * df['precio_neto']).sum():,.0f}",
     )
-    c4.metric(
-        "Valor de stock (costo Contabilium)",
+    fila2[1].metric(
+        "Valor de stock a costo (ERP)",
         f"$ {(df['stock'] * df['costo_interno_cbm']).sum():,.0f}",
     )
 

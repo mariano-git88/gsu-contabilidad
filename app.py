@@ -18,6 +18,7 @@ import auth
 import cogs
 import costos
 import productos
+import tutorial
 from theme import apply_theme
 
 
@@ -45,8 +46,8 @@ def main() -> None:
         "vendida (COGS) por período."
     )
 
-    tab_prod, tab_costos, tab_cogs = st.tabs(
-        ["Productos", "Carga de costos", "COGS mensual"]
+    tab_prod, tab_costos, tab_cogs, tab_tutorial = st.tabs(
+        ["Productos", "Carga de costos", "COGS mensual", "Tutorial"]
     )
 
     with tab_prod:
@@ -57,6 +58,9 @@ def main() -> None:
 
     with tab_cogs:
         cogs.render()
+
+    with tab_tutorial:
+        tutorial.render()
 
 
 if __name__ == "__main__":
