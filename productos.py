@@ -23,10 +23,15 @@ import gsheets
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _leer_costos_sheet(gsheets_section: dict) -> pd.DataFrame:
+def _leer_costos_sheet(_gsheets_section: dict) -> pd.DataFrame:
     """Histórico de costos del Google Sheet (la fuente de verdad). Cache
-    5min; el botón 'Sincronizar ahora' lo invalida junto al catálogo."""
-    return gsheets.read_costos(dict(gsheets_section))
+    5min; el botón 'Sincronizar ahora' lo invalida junto al catálogo.
+
+    El parámetro va con guion bajo (`_gsheets_section`) para que Streamlit
+    NO intente hashearlo: contiene el `service_account` de secrets (objeto
+    anidado no hasheable). Los secrets no cambian en la sesión, así que la
+    clave de cache constante es correcta."""
+    return gsheets.read_costos(dict(_gsheets_section))
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
