@@ -12,12 +12,21 @@ costos: export CSV con todas las SKUs activas.
 
 from __future__ import annotations
 
+from datetime import date
 from io import BytesIO
 
 import pandas as pd
 import streamlit as st
 
 import api_loader
+import gsheets
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _leer_costos_sheet(gsheets_section: dict) -> pd.DataFrame:
+    """Histórico de costos del Google Sheet (la fuente de verdad). Cache
+    5min; el botón 'Sincronizar ahora' lo invalida junto al catálogo."""
+    return gsheets.read_costos(dict(gsheets_section))
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -79,6 +88,7 @@ def render() -> None:
     with col1:
         if st.button("Sincronizar ahora"):
             _sync_catalogo.clear()
+            _leer_costos_sheet.clear()
             st.rerun()
     with col2:
         solo_activos = st.checkbox("Solo activos", value=True)
@@ -112,6 +122,33 @@ def render() -> None:
                 df["nombre"].str.upper().str.contains(t, na=False, regex=False)
         df = df[mask].reset_index(drop=True)
 
+    # --- Costo real desde el Google Sheet (fuente de verdad) ---
+    # El `costo_interno_cbm` de Contabilium suele venir en $0 porque los
+    # costos no se cargan al ERP; la verdad vive en el Sheet. Traemos el
+    # costo vigente HOY por SKU para mostrarlo y pre-llenar la plantilla.
+    gsheets_section = st.secrets.get("gsheets")
+    hoy_iso = date.today().isoformat()
+    costo_sheet_map: dict[str, float] = {}
+    if gsheets_section:
+        try:
+            df_costos = _leer_costos_sheet(dict(gsheets_section))
+            costo_sheet_map = gsheets.costos_vigentes_map(df_costos, hoy_iso)
+        except gsheets.GsheetsError as e:
+            st.warning(
+                f"No se pudo leer el Google Sheet de costos ({e}). Se usa el "
+                "costo de Contabilium como respaldo."
+            )
+    else:
+        st.info(
+            "No hay `[gsheets]` configurado en secrets: la plantilla se "
+            "pre-llena con el costo de Contabilium (posiblemente $0)."
+        )
+
+    # `costo_sheet`: costo vigente del Sheet; NaN si el SKU no tiene carga.
+    df["costo_sheet"] = df["sku"].map(costo_sheet_map)
+    # Costo efectivo para métricas/plantilla: Sheet si existe, si no ERP.
+    df["costo_efectivo"] = df["costo_sheet"].fillna(df["costo_interno_cbm"])
+
     # Métricas en 2x2: cuatro en una fila cortan los montos grandes.
     fila1 = st.columns(2)
     fila1[0].metric("Productos", f"{len(df):,}")
@@ -122,9 +159,17 @@ def render() -> None:
         f"$ {(df['stock'] * df['precio_neto']).sum():,.0f}",
     )
     fila2[1].metric(
-        "Valor de stock a costo (ERP)",
-        f"$ {(df['stock'] * df['costo_interno_cbm']).sum():,.0f}",
+        "Valor de stock a costo (Sheet)",
+        f"$ {(df['stock'] * df['costo_efectivo']).sum():,.0f}",
+        help="Usa el costo vigente del Google Sheet; para los SKU sin "
+             "costo cargado cae al costo de Contabilium.",
     )
+    n_sin_costo = int(df["costo_sheet"].isna().sum())
+    if n_sin_costo:
+        st.caption(
+            f"⚠️ {n_sin_costo} de {len(df)} SKU no tienen costo cargado en "
+            "el Sheet (aparecen en $0 en la plantilla, listos para completar)."
+        )
 
     st.dataframe(
         df,
@@ -133,6 +178,12 @@ def render() -> None:
         column_config={
             "sku": st.column_config.TextColumn("SKU", width="small"),
             "nombre": st.column_config.TextColumn("Nombre", width="large"),
+            "costo_sheet": st.column_config.NumberColumn(
+                "Costo (Sheet)", format="$ %.2f",
+                help="Costo vigente hoy en el Google Sheet. Vacío = SKU sin "
+                     "costo cargado.",
+            ),
+            "costo_efectivo": None,  # auxiliar, no mostrar
             "costo_interno_cbm": st.column_config.NumberColumn(
                 "Costo Contabilium", format="$ %.2f"
             ),
@@ -155,14 +206,16 @@ def render() -> None:
 
     st.markdown("### Exportar plantilla de costos")
     st.caption(
-        "Descargá un CSV/XLSX con SKU + nombre + costo actual de "
-        "Contabilium pre-cargado en la columna `costo`, listo para "
-        "editar y volver a subir desde la pestaña **Carga de costos**."
+        "Descargá un CSV/XLSX con SKU + nombre + **costo vigente del Sheet** "
+        "pre-cargado en la columna `costo`, listo para editar y volver a "
+        "subir desde la pestaña **Carga de costos**. Los SKU sin costo "
+        "cargado salen en $0."
     )
 
-    plantilla = df[["sku", "nombre", "costo_interno_cbm"]].rename(
-        columns={"costo_interno_cbm": "costo"}
+    plantilla = df[["sku", "nombre", "costo_efectivo"]].rename(
+        columns={"costo_efectivo": "costo"}
     )
+    plantilla["costo"] = plantilla["costo"].fillna(0.0).round(2)
 
     col_a, col_b = st.columns(2)
     with col_a:

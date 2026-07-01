@@ -228,3 +228,22 @@ def costo_vigente_por_sku(
         ["fecha_vigencia_desde", "fecha_carga"], ascending=True
     ).iloc[-1]
     return float(ultima["costo"])
+
+
+def costos_vigentes_map(df_costos: pd.DataFrame, fecha: str) -> dict[str, float]:
+    """Costo vigente a `fecha` para TODOS los SKU, en una sola pasada.
+
+    Devuelve {sku: costo}. Misma lógica que `costo_vigente_por_sku` (el
+    último costo con `fecha_vigencia_desde <= fecha`) pero vectorizada,
+    para pre-llenar la plantilla de costos sin filtrar el DF por cada SKU.
+    Los SKU sin costo vigente a esa fecha simplemente no aparecen en el dict.
+    """
+    if df_costos.empty:
+        return {}
+    vig = df_costos[df_costos["fecha_vigencia_desde"] <= fecha]
+    if vig.empty:
+        return {}
+    # Ordenar y quedarse con la última fila por SKU (ISO ordena bien).
+    vig = vig.sort_values(["fecha_vigencia_desde", "fecha_carga"])
+    ultimos = vig.groupby("sku", as_index=False).tail(1)
+    return dict(zip(ultimos["sku"], ultimos["costo"].astype(float)))
