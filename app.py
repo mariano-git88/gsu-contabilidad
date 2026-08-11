@@ -1,10 +1,11 @@
 """
 app.py — Webapp Contabilidad Suprabond.
 
-Entry point para `contabilidad.streamlit.app`. Tres secciones:
+Entry point para `contabilidad.streamlit.app`. Cuatro secciones:
   1. Productos: catálogo desde API Contabilium (SKU, precio, stock, etc).
   2. Carga de costos: upload CSV/XLSX → Google Sheet (histórico fechado).
   3. COGS mensual: cruce ventas del mes × costo vigente por SKU.
+  4. Precios: elasticidad por SKU y candidatos a subir precio.
 
 Auth single-user (password compartida). Misma estética Dieter Rams /
 Vitsoe del dashboard GSU.
@@ -17,6 +18,7 @@ import streamlit as st
 import auth
 import cogs
 import costos
+import precios
 import productos
 import tutorial
 from theme import apply_theme
@@ -46,8 +48,8 @@ def main() -> None:
         "vendida (COGS) por período."
     )
 
-    tab_prod, tab_costos, tab_cogs, tab_tutorial = st.tabs(
-        ["Productos", "Carga de costos", "COGS mensual", "Tutorial"]
+    tab_prod, tab_costos, tab_cogs, tab_precios, tab_tutorial = st.tabs(
+        ["Productos", "Carga de costos", "COGS mensual", "Precios", "Tutorial"]
     )
 
     with tab_prod:
@@ -58,6 +60,9 @@ def main() -> None:
 
     with tab_cogs:
         cogs.render()
+
+    with tab_precios:
+        precios.render()
 
     with tab_tutorial:
         tutorial.render()

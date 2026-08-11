@@ -1,10 +1,10 @@
 # Contabilidad Suprabond
 
-Webapp Streamlit para visibilidad de costos internos por SKU y cálculo
-de costo de mercadería vendida (COGS) por período. Vive en
+Webapp Streamlit para visibilidad de costos internos por SKU, cálculo de
+costo de mercadería vendida (COGS) por período y análisis de precios. Vive en
 `contabilidad.streamlit.app`.
 
-## Tres secciones
+## Cuatro secciones
 
 1. **Productos** — Catálogo activo desde la API de Contabilium UY. SKU,
    nombre, costo interno cargado en el ERP (informativo), precio neto,
@@ -19,6 +19,32 @@ de costo de mercadería vendida (COGS) por período. Vive en
    (FAC + NDF − NCF) y multiplica cada línea por el costo vigente del
    SKU a la fecha de la factura. Devuelve total COGS, COGS por SKU,
    margen bruto y panel de salud con SKUs vendidos sin costo cargado.
+
+4. **Precios** — Cruza los últimos 12 meses de facturación con el costo
+   vigente y clasifica cada SKU con un semáforo: cuáles aguantan una
+   suba de precio, cuáles no hay que tocar y cuáles se están vendiendo
+   por debajo del costo. Incluye simulador de suba y registro de las
+   decisiones para medirlas después.
+
+   La pregunta que responde es "¿a qué códigos les puedo subir el precio
+   sin perder unidades?". **El camino obvio no sirve**: en venta mayorista
+   el descuento lo genera el volumen, así que correlacionar precio contra
+   unidades siempre da "bajar el precio vende más" — que es causalidad
+   invertida. El análisis usa tres lentes que esquivan eso:
+
+   - *Experimento hacia abajo*: bajaron el precio y el volumen NO subió.
+   - *Experimento hacia arriba*: subieron el precio y el volumen NO cayó.
+   - *Piso de marca*: quedó bajo `costo × 1,85` y nunca respondió a bajas.
+
+   Controles obligatorios, sin los cuales el análisis miente: se descartan
+   los SKU estacionales (se detecta por concentración en 5 meses
+   *consecutivos*, no se hardcodea), los que tuvieron quiebre de stock
+   (semanas sin venta que aumentan respecto del período anterior) y los
+   lanzamientos sin historia comparable.
+
+   **Límite conocido:** se observa el precio promedio *realizado*
+   (monto/unidades), no el precio de lista. Una "suba" puede ser
+   simplemente que ese mes compraron menos clientes bonificados.
 
 ## Setup local
 

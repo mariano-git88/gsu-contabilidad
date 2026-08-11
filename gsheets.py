@@ -247,3 +247,83 @@ def costos_vigentes_map(df_costos: pd.DataFrame, fecha: str) -> dict[str, float]
     vig = vig.sort_values(["fecha_vigencia_desde", "fecha_carga"])
     ultimos = vig.groupby("sku", as_index=False).tail(1)
     return dict(zip(ultimos["sku"], ultimos["costo"].astype(float)))
+
+
+# =====================================================================
+# Decisiones de precio (tab `precios_decisiones`)
+# =====================================================================
+#
+# Registra cada suba de precio decidida desde la pestaña Precios para
+# poder medirla después. Sin este log, el análisis de elasticidad se
+# queda en "mirar para atrás": con él, cada decisión se convierte en un
+# experimento con fecha, y a los 60-90 días se puede comparar el volumen
+# contra el de antes.
+
+TAB_DECISIONES = "precios_decisiones"
+
+DECISIONES_COLUMNS = [
+    "sku",
+    "fecha_decision",
+    "precio_antes",
+    "precio_objetivo",
+    "suba_pct",
+    "unidades_12m_antes",
+    "motivo",
+    "usuario",
+    "nota",
+]
+
+
+def read_decisiones(gsheets_section: dict) -> pd.DataFrame:
+    """Lee el log de decisiones de precio. DF vacío con schema si no hay tab."""
+    sh = _open_sheet(gsheets_section)
+    ws = _ensure_worksheet(sh, TAB_DECISIONES, cols=len(DECISIONES_COLUMNS))
+    rows = ws.get_all_values()
+    if not rows or len(rows) < 2:
+        return pd.DataFrame(columns=DECISIONES_COLUMNS)
+    df = pd.DataFrame(rows[1:], columns=rows[0])
+    for c in DECISIONES_COLUMNS:
+        if c not in df.columns:
+            df[c] = None
+    df = df[DECISIONES_COLUMNS].copy()
+    df["sku"] = df["sku"].astype(str).str.strip().str.upper()
+    for c in ("precio_antes", "precio_objetivo", "suba_pct", "unidades_12m_antes"):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df["fecha_decision"] = pd.to_datetime(df["fecha_decision"], errors="coerce")
+    return df.dropna(subset=["fecha_decision"]).reset_index(drop=True)
+
+
+def append_decisiones(gsheets_section: dict, filas: list[dict]) -> int:
+    """Append-only de decisiones de precio. Devuelve filas escritas.
+
+    Se escribe con RAW: el SKU es clave de cruce y USER_ENTERED puede
+    comerse ceros a la izquierda o interpretar códigos como fechas.
+    """
+    if not filas:
+        return 0
+    sh = _open_sheet(gsheets_section)
+    ws = _ensure_worksheet(sh, TAB_DECISIONES, cols=len(DECISIONES_COLUMNS))
+    header = ws.row_values(1)
+    if not header or header[: len(DECISIONES_COLUMNS)] != DECISIONES_COLUMNS:
+        ws.update("A1", [DECISIONES_COLUMNS], value_input_option="RAW")
+
+    rows_data = []
+    for f in filas:
+        sku = str(f.get("sku") or "").strip().upper()
+        if not sku:
+            continue
+        rows_data.append([
+            sku,
+            str(f.get("fecha_decision") or datetime.now().strftime("%Y-%m-%d")),
+            f"{float(f.get('precio_antes', 0.0)):.2f}",
+            f"{float(f.get('precio_objetivo', 0.0)):.2f}",
+            f"{float(f.get('suba_pct', 0.0)):.2f}",
+            f"{float(f.get('unidades_12m_antes', 0.0)):.0f}",
+            str(f.get("motivo") or ""),
+            str(f.get("usuario") or "mariano"),
+            str(f.get("nota") or ""),
+        ])
+    if not rows_data:
+        return 0
+    ws.append_rows(rows_data, value_input_option="RAW")
+    return len(rows_data)
