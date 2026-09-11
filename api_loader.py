@@ -596,10 +596,10 @@ MONEDA_MAP: dict[int, str] = {
 # Las notas de DÉBITO (NDF, NDT, NDE) NO entran acá — esas suman como
 # facturas, con signo positivo.
 #
-# Igual, la lista de tipos es solo el RESPALDO: el signo real sale de
+# Igual, la lista no es la única señal: el signo también sale de
 # `ImporteTotalNeto` del header, que ya viene firmado (negativo en toda
-# NC). Así un tipo nuevo que no esté en esta lista tampoco se cuenta al
-# revés. Ver `_signo_comprobante`.
+# NC). Alcanza con una de las dos, así un tipo nuevo que no esté en esta
+# lista tampoco se cuenta al revés. Ver `_signo_comprobante`.
 TIPOS_NEGATIVOS: frozenset[str] = frozenset({"NCF", "NCT", "NCTK", "NCE"})
 
 
@@ -607,16 +607,15 @@ def _signo_comprobante(header: dict, tipo: str) -> float:
     """Signo a aplicar a los items de un comprobante.
 
     Los `Items` del detalle vienen SIEMPRE con `Cantidad` y
-    `PrecioUnitario` positivos, incluso en notas de crédito. El signo
-    lo ponemos nosotros: primero desde `ImporteTotalNeto` del header
-    (firmado), y si viniera en cero, desde `TIPOS_NEGATIVOS`.
+    `PrecioUnitario` positivos, también en las notas de crédito: el -1
+    lo ponemos nosotros. Dos señales, y alcanza con una: el `TipoFc`, y
+    `ImporteTotalNeto` del header, que viene FIRMADO (negativo en toda
+    NC). Así un tipo nuevo que no esté en la lista tampoco se cuenta al
+    revés.
     """
-    neto = parse_monto_uy(header.get("ImporteTotalNeto"))
-    if neto < 0:
+    if tipo in TIPOS_NEGATIVOS:
         return -1.0
-    if neto > 0:
-        return 1.0
-    return -1.0 if tipo in TIPOS_NEGATIVOS else 1.0
+    return -1.0 if parse_monto_uy(header.get("ImporteTotalNeto")) < 0 else 1.0
 
 
 def _fetch_all_clientes(session: ApiSession) -> tuple[ApiSession, list[dict]]:
